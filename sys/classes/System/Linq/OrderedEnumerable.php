@@ -33,6 +33,7 @@ namespace System\Linq;
 
 use \System\ArgumentNullException;
 use \System\Collections\IEnumerable;
+use \System\Collections\IItemContext;
 
 
 /**
@@ -87,17 +88,28 @@ class OrderedEnumerable extends Enumerable implements IOrderedEnumerable {
             $this->_i->reset();
         }
 
-        $items = \iterator_to_array($this->_i);
-
-        $comparer = $this->_comparer;
         $selector = $this->_selector;
 
-        \usort($items, function($x, $y) use ($comparer, $selector) : int {
-            return $comparer($selector($x),
-                             $selector($y));
+        $items = $this->_i
+                      ->select(function($x, IItemContext $ctx) use ($selector) {
+                                   $result         = new \stdClass();
+                                   $result->sortBy = $selector($x, $ctx);
+                                   $result->value  = $x;
+
+                                   return $result;
+                               })
+                      ->toArray();
+
+        $comparer = $this->_comparer;
+
+        \usort($items, function(\stdClass $x, \stdClass $y) use ($comparer) : int {
+            return (int)$comparer($x->sortBy, $y->sortBy);
         });
 
-        $this->_i = new \ArrayIterator($items);
+        $this->_i = static::createEnumerable($items)
+                          ->select(function(\stdClass $x) {
+                                       return $x->value;
+                                   });
     }
 
     /**
@@ -136,12 +148,12 @@ class OrderedEnumerable extends Enumerable implements IOrderedEnumerable {
                               return $result;
                           },
                           function(array $x, array $y) use ($comparer, $thisComparer) : int {
-                              $comp0 = $thisComparer($x['l0'], $y['l0']);
+                              $comp0 = (int)$thisComparer($x['l0'], $y['l0']);
                               if (0 !== $comp0) {
                                   return $comp0;
                               }
 
-                              $comp1 = $comparer($x['l1'], $y['l1']);
+                              $comp1 = (int)$comparer($x['l1'], $y['l1']);
                               if (0 !== $comp1) {
                                   return $comp1;
                               }
@@ -158,7 +170,7 @@ class OrderedEnumerable extends Enumerable implements IOrderedEnumerable {
 
         return $this->thenBy($selector,
                              function($x, $y) use ($comparer) : int {
-                                 return $comparer($y, $x);
+                                 return (int)$comparer($y, $x);
                              });
     }
 

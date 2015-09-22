@@ -227,7 +227,7 @@ abstract class EnumerableBase extends Object implements IEnumerable {
     public final function cast($type) : IEnumerable {
         $type     = \trim($type);
         $castCode = \sprintf('return (%s)$x;', $type);
-        $cls      = new \ReflectionClass(static::class);
+        $cls      = $this->getType();
 
         $myMethods = [
             'asCallable' => $cls->getMethod('asCallable')->getClosure(null),
@@ -556,7 +556,7 @@ abstract class EnumerableBase extends Object implements IEnumerable {
         }
 
         return function($x, $y) use ($comparer) : int {
-            return $comparer($x, $y);
+            return (int)$comparer($x, $y);
         };
     }
 
@@ -596,7 +596,7 @@ abstract class EnumerableBase extends Object implements IEnumerable {
         }
 
         return function($x, $y) use ($equalityComparer) : bool {
-            return $equalityComparer($x, $y);
+            return (bool)$equalityComparer($x, $y);
         };
     }
 
@@ -656,7 +656,7 @@ abstract class EnumerableBase extends Object implements IEnumerable {
             $ctx->result($groupList);
         }, []);
 
-        $cls       = new \ReflectionClass(static::class);
+        $cls       = $this->getType();
         $createSeq = $cls->getMethod('createEnumerable')->getClosure(null);
 
         return $createSeq($groups)->select(function(\stdClass $x) use ($createSeq) : IGrouping {
@@ -1037,9 +1037,9 @@ abstract class EnumerableBase extends Object implements IEnumerable {
 
                                 if (\is_object($x)) {
                                     if (\interface_exists($type) || \class_exists($type)) {
-                                        $reflect = new \ReflectionClass($type);
+                                        $rc = new \ReflectionClass($type);
 
-                                        return $reflect->isInstance($x);
+                                        return $rc->isInstance($x);
                                     }
 
                                     return 'object' === $type;
@@ -1093,7 +1093,7 @@ abstract class EnumerableBase extends Object implements IEnumerable {
 
         return $this->orderBy($selector,
                               function($x, $y) use ($comparer) : int {
-                                  return $comparer($y, $x);
+                                  return (int)$comparer($y, $x);
                               });
     }
 
@@ -1151,7 +1151,7 @@ abstract class EnumerableBase extends Object implements IEnumerable {
     /**
      * {@inheritDoc}
      */
-    public final function reverse() : IEnumerable {
+    public final function reverse() : IOrderedEnumerable {
         return $this->orderBy(function($x, IIndexedItemContext $ctx) {
                                   return \PHP_INT_MAX - $ctx->index();
                               });
@@ -1160,7 +1160,8 @@ abstract class EnumerableBase extends Object implements IEnumerable {
     /**
      * {@inheritDoc}
      */
-    public final function rewind() {
+    public function rewind() {
+        // deactivated by default
     }
 
     /**
@@ -1291,9 +1292,19 @@ abstract class EnumerableBase extends Object implements IEnumerable {
 
         $predicateOrDefValue = static::getPredicateSafe($predicateOrDefValue);
 
-        return $this->iterateWithItemContext(function($x, IEachItemContext $ctx) use ($predicateOrDefValue) {
+        $me = $this;
+
+        return $this->iterateWithItemContext(function($x, IEachItemContext $ctx) use ($me, $predicateOrDefValue) {
                                                  if (true === $ctx->value()) {
-                                                     throw new \System\Exception('Sequence contains more than one matching element!');
+                                                     $te = $me->getType()
+                                                              ->getMethod('throwException')
+                                                              ->getClosure($me);
+
+                                                     $te('Sequence contains more than one matching element!');
+                                                 }
+
+                                                 if (!$predicateOrDefValue($x, $ctx)) {
+                                                     return;
                                                  }
 
                                                  $ctx->result($x);
@@ -1400,6 +1411,23 @@ abstract class EnumerableBase extends Object implements IEnumerable {
     }
 
     /**
+     * Throws an exception for that sequence.
+     *
+     * @param string $message The message.
+     * @param int $code The code.
+     * @param \Exception $previous The inner/previous exception.
+     *
+     * @throws EnumerableException The thrown exception.
+     */
+    protected function throwException(string $message = null,
+                                      int $code = 0,
+                                      \Exception $previous = null) {
+
+        throw new EnumerableException($this,
+                                      $message, $previous, $code);
+    }
+
+    /**
      * {@inheritDoc}
      */
     public final function toArray($keySelector = null) : array {
@@ -1477,12 +1505,10 @@ abstract class EnumerableBase extends Object implements IEnumerable {
 
             $lambdaBody = \trim(\substr($expr, \strlen($lambdaMatches[0])));
 
-            if (\strlen($lambdaBody) >= 2) {
-                if (('{' === \substr($lambdaBody, 0, 1)) &&
-                    ('}' === \substr($lambdaBody, -1)))
-                {
-                    $lambdaBody = \trim(\substr($lambdaBody, 1, \strlen($lambdaBody) - 2));
-                }
+            while ((\strlen($lambdaBody) >= 2) &&
+                   ('{' === \substr($lambdaBody, 0, 1)) && ('}' === \substr($lambdaBody, -1))) {
+
+                $lambdaBody = \trim(\substr($lambdaBody, 1, \strlen($lambdaBody) - 2));
             }
 
             if ('' === $lambdaBody) {
@@ -1491,13 +1517,11 @@ abstract class EnumerableBase extends Object implements IEnumerable {
 
             if ((';' !== \substr($lambdaBody, -1))) {
                 $lambdaBody = \sprintf('return %s;',
-                    $lambdaBody);
+                                       $lambdaBody);
             }
 
-            $code = \sprintf('return function(%s) { %s };',
-                             $lambdaMatches[3], $lambdaBody);
-
-            return eval($code);
+            return eval(\sprintf('return function(%s) { %s };',
+                                 $lambdaMatches[3], $lambdaBody));
         }
 
         if ($throwException) {
@@ -1591,7 +1615,7 @@ abstract class EnumerableBase extends Object implements IEnumerable {
      */
     public static function wrapPredicate(callable $predicate) : callable {
         return function($x, $ctx) use ($predicate) : bool {
-                   return $predicate($x, $ctx);
+                   return (bool)$predicate($x, $ctx);
                };
     }
 
@@ -1623,7 +1647,7 @@ abstract class EnumerableBase extends Object implements IEnumerable {
         $value1   = null;
         $value2   = null;
         while ($this->valid() && $second->valid()) {
-            $ctx1 = new EachItemContext($this  , $index, true, $prevVal1);
+            $ctx1 = new EachItemContext($this, $index, true, $prevVal1);
             $ctx1->value($value1);
 
             $ctx2 = new EachItemContext($second, $index, true, $prevVal2);

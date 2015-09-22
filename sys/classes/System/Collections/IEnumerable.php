@@ -444,9 +444,9 @@ interface IEnumerable extends \Countable, \Iterator, \Serializable, IObject {
     /**
      * Returns the items of that sequence in reverse order.
      *
-     * @return IEnumerable The new sequence.
+     * @return IOrderedEnumerable The new sequence.
      */
-    function reverse() : IEnumerable;
+    function reverse() : IOrderedEnumerable;
 
     /**
      * Projects each element of that sequence to a new sequence.

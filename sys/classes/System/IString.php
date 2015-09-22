@@ -41,5 +41,8 @@ use \System\Collections\IEnumerable;
  * @author Marcel Joachim Kloubert <marcel.kloubert@gmx.net>
  */
 interface IString extends IEnumerable, IValueWrapper {
+    /**
+     * {@inheritDoc}
+     */
     function getWrappedValue() : string;
 }
