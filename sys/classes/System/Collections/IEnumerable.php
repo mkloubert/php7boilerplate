@@ -34,8 +34,10 @@ namespace System\Collections;
 use \System\ArgumentException;
 use \System\ArgumentNullException;
 use \System\ArgumentOutOfRangeException;
+use \System\IFormatProvider;
 use \System\IObject;
 use \System\IString;
+use \System\Linq\ILookup;
 use \System\Linq\IOrderedEnumerable;
 
 
@@ -87,12 +89,29 @@ interface IEnumerable extends \Countable, \Iterator, \Serializable, IObject {
     /**
      * Appends the items of that sequence to an array.
      *
-     * @param array $arr The target array.
+     * @param array|\ArrayAccess &$arr The target array.
      * @param bool $withKeys Also apply keys or not.
      *
      * @return IEnumerable That instance.
+     *
+     * @throws ArgumentException $arr is no valid array type.
+     * @throws ArgumentNullException $arr is (null).
      */
-    function appendToArray(array &$arr, bool $withKeys = false) : IEnumerable;
+    function appendToArray(&$arr, bool $withKeys = false) : IEnumerable;
+
+    /**
+     * Returns that instance as sequence.
+     *
+     * @return IEnumerable The object as sequence.
+     */
+    function asEnumerable() : IEnumerable;
+
+    /**
+     * Returns a version of that sequence that can be resetted.
+     *
+     * @return IEnumerable The converted sequence or that instance if it can be resetted.
+     */
+    function asResettable() : IEnumerable;
 
     /**
      * Calculates the average value of all values of that sequence.
@@ -107,10 +126,11 @@ interface IEnumerable extends \Countable, \Iterator, \Serializable, IObject {
      * Casts all items of that class to a specific type.
      *
      * @param string $type The target type.
+     * @param IFormatProvider $provider The custom format provider to use.
      *
      * @return IEnumerable The new sequence.
      */
-    function cast($type) : IEnumerable;
+    function cast($type, IFormatProvider $provider = null) : IEnumerable;
 
     /**
      * Concats the items of that sequence with one or more others.
@@ -128,7 +148,7 @@ interface IEnumerable extends \Countable, \Iterator, \Serializable, IObject {
      *
      * @return IString The sequence as string.
      */
-    function concatToString($defValue = '') : IString;
+    function concatToString($defValue = '');
 
     /**
      * Concats the items of that sequence with a list of values.
@@ -143,7 +163,8 @@ interface IEnumerable extends \Countable, \Iterator, \Serializable, IObject {
      * Checks if that sequence contains an item.
      *
      * @param mixed $item The item to search for.
-     * @param callable $equalityComparer The custom equality comparer to use.
+     * @param callable|bool $equalityComparer The custom equality comparer to use.
+     *                                        (true) indicates to check values for exact match (=== operator).
      *
      * @return bool Contains item or not.
      */
@@ -170,7 +191,8 @@ interface IEnumerable extends \Countable, \Iterator, \Serializable, IObject {
     /**
      * Removes duplicates.
      *
-     * @param callable $equalityComparer The custom equality comparer.
+     * @param callable|bool $equalityComparer The custom equality comparer.
+     *                                        (true) indicates to check values for exact match (=== operator).
      *
      * @return IEnumerable The new sequence.
      */
@@ -193,17 +215,33 @@ interface IEnumerable extends \Countable, \Iterator, \Serializable, IObject {
      * Returns an element at a specific position.
      *
      * @param int $index The zero based index.
-     * @param mixed $defValue The value to return if element was not found.
      *
      * @return mixed The element or the default value.
+     *
+     * @throws ArgumentOutOfRangeException $index is less than 0.
+     * @throws ElementNotFoundException Element was not found.
      */
-    function elementAtOrDefault(int $index, $defValue = null);
+    function elementAt(int $index);
+
+    /**
+     * Returns an element at a specific position.
+     *
+     * @param int $index The zero based index.
+     * @param mixed $defValue The value to return if element was not found.
+     * @param bool &$found The variable where to write down if an element was found or not.
+     *
+     * @return mixed The element or the default value.
+     *
+     * @throws ArgumentOutOfRangeException $index is less than 0.
+     */
+    function elementAtOrDefault(int $index, $defValue = null, &$found = false);
 
     /**
      * Returns the items of that sequence except the items of other one.
      *
      * @param mixed $second The other sequence.
-     * @param callable $equalityComparer The custom equaler function.
+     * @param callable|bool $equalityComparer The custom equality function.
+     *                                        (true) indicates to check values for exact match (=== operator).
      *
      * @return IEnumerable The new sequence.
      *
@@ -213,22 +251,48 @@ interface IEnumerable extends \Countable, \Iterator, \Serializable, IObject {
     function except($second, $equalityComparer = null) : IEnumerable;
 
     /**
+     * Returns the first matching value of that sequence.
+     *
+     * @param callable $predicate The custom predicate to use.
+     *
+     * @return mixed The first matching value.
+     *
+     * @throws ArgumentException $predicate is no valid callable / lambda expression.
+     * @throws ElementNotFoundException Element was not found.
+     */
+    function first($predicate = null);
+
+    /**
      * Returns the first matching value of that sequence or a default value if not found.
      *
      * @param mixed $predicateOrDefValue The custom predicate to use.
      *                                   If there is only one submitted argument and this variable contains
      *                                   no callable, it is set to (null) and its origin value is written to $defValue.
      * @param mixed $defValue The default value to return if value was not found.
+     * @param bool &$found The variable where to write down if a value was found or not.
      *
      * @return mixed The first matching value or the default value.
+     *
+     * @throws ArgumentException $predicateOrDefValue is no valid callable / lambda expression.
      */
-    function firstOrDefault($predicateOrDefValue = null, $defValue = null);
+    function firstOrDefault($predicateOrDefValue = null, $defValue = null, &$found = false);
+
+    /**
+     * Returns a formatted string by using the elements of that sequence as arguments
+     * for the format string.
+     *
+     * @param string $format The format string.
+     *
+     * @return IString The formatted string.
+     */
+    function formatAsString($format) : IString;
 
     /**
      * Groups the items of that sequence.
      *
      * @param callable $keySelector The key selector.
-     * @param callable $keyEqualityComparer The custom equality function for the keys.
+     * @param callable|bool $keyEqualityComparer The custom equality function for the keys.
+     *                                           (true) indicates to check values for exact match (=== operator).
      *
      * @return IEnumerable The grouped items as a sequence of IGrouping items.
      *
@@ -244,7 +308,8 @@ interface IEnumerable extends \Countable, \Iterator, \Serializable, IObject {
      * @param callable $outerKeySelector The key selector for the items of that sequence.
      * @param callable $innerKeySelector The key selector for the items of the other sequence.
      * @param callable $resultSelector The function that provides the result value for two matching elements.
-     * @param callable $keyEqualityComparer The custom equality function for the keys.
+     * @param callable|bool $keyEqualityComparer The custom equality function for the keys.
+     *                                           (true) indicates to check values for exact match (=== operator).
      *
      * @return static The joined sequence.
      *
@@ -260,7 +325,8 @@ interface IEnumerable extends \Countable, \Iterator, \Serializable, IObject {
      * Returns the intersection of this sequence and another.
      *
      * @param mixed $second The second sequence.
-     * @param callable $equalityComparer The custom equaler function.
+     * @param callable|bool $equalityComparer The custom equality function.
+     *                                        (true) indicates to check values for exact match (=== operator).
      *
      * @return IEnumerable The new sequence.
      *
@@ -290,11 +356,13 @@ interface IEnumerable extends \Countable, \Iterator, \Serializable, IObject {
      * @param callable $outerKeySelector The key selector for the items of that sequence.
      * @param callable $innerKeySelector The key selector for the items of the other sequence.
      * @param callable $resultSelector The function that provides the result value for two matching elements.
-     * @param callable $keyEqualityComparer The custom equality function for the keys.
+     * @param callable|bool $keyEqualityComparer The custom equality function for the keys.
+     *                                           (true) indicates to check values for exact match (=== operator).
      *
      * @return IEnumerable The joined sequence.
      *
-     * @throws ArgumentException $outerKeySelector / $innerKeySelector / $resultSelector / $keyEqualityComparer is no valid callable / lambda expression.
+     * @throws ArgumentException $outerKeySelector / $innerKeySelector / $resultSelector / $keyEqualityComparer
+     *                           is no valid callable / lambda expression.
      * @throws ArgumentNullException $outerKeySelector / $innerKeySelector / $resultSelector is (null).
      */
     function join($inner,
@@ -310,7 +378,7 @@ interface IEnumerable extends \Countable, \Iterator, \Serializable, IObject {
      *
      * @return IString The sequence as string.
      */
-    function joinToString($separator = null, $defValue = '') : IString;
+    function joinToString($separator = null, $defValue = '');
 
     /**
      * Joins all items of that sequence to one string by using a separator.
@@ -320,7 +388,19 @@ interface IEnumerable extends \Countable, \Iterator, \Serializable, IObject {
      *
      * @return IString The sequence as string.
      */
-    function joinToStringCallback($separatorFactory = null, $defValue = '') : IString;
+    function joinToStringCallback($separatorFactory = null, $defValue = '');
+
+    /**
+     * Returns the last matching value of that sequence.
+     *
+     * @param callable $predicate The custom predicate to use.
+     *
+     * @return mixed The last matching value.
+     *
+     * @throws ArgumentException $predicate is no valid callable / lambda expression.
+     * @throws ElementNotFoundException Element was not found.
+     */
+    function last($predicate = null);
 
     /**
      * Returns the last matching value of that sequence or a default value if not found.
@@ -329,10 +409,13 @@ interface IEnumerable extends \Countable, \Iterator, \Serializable, IObject {
      *                                   If there is only one submitted argument and this variable contains
      *                                   no callable, it is set to (null) and its origin value is written to $defValue.
      * @param mixed $defValue The default value to return if value was not found.
+     * @param bool &$found The variable where to write down if a value was found or not.
      *
      * @return mixed The last matching value or the default value.
+     *
+     * @throws ArgumentException $predicateOrDefValue is no valid callable / lambda expression.
      */
-    function lastOrDefault($predicateOrDefValue = null, $defValue = null);
+    function lastOrDefault($predicateOrDefValue = null, $defValue = null, &$found = false);
 
     /**
      * Gets the maximum value of that sequence.
@@ -357,7 +440,7 @@ interface IEnumerable extends \Countable, \Iterator, \Serializable, IObject {
     /**
      * Returns the items of a specific type.
      *
-     * @param string $type The type.
+     * @param string|\ReflectionClass $type The type.
      *
      * @return IEnumerable The new sequence.
      */
@@ -425,14 +508,18 @@ interface IEnumerable extends \Countable, \Iterator, \Serializable, IObject {
     /**
      * Randomizes the order of that sequence.
      *
-     * @param callable $seeder The custom function that initializes the random number generator.
+     * @param callable|bool $seeder The custom function that initializes the random number generator.
+     *                              If this value is (true), a default logic is used.
      * @param callable $randProvider The custom function that provides the random values.
      *
-     * @return IEnumerable The new sequence.
+     * @return IOrderedEnumerable The new sequence.
      *
-     * @throws ArgumentException $seeder / $randProvider is no valid callable / lambda expression.
+     * @throws ArgumentException $seeder / $randProviderOrPreventKeys is no valid callable / lambda expression.
      */
-    function randomize($seeder = null, $randProvider = null) : IEnumerable;
+    function randomize(
+        $seeder = null,
+        $randProvider = null
+    ) : IOrderedEnumerable;
 
     /**
      * Resets the sequence and returns it.
@@ -477,27 +564,45 @@ interface IEnumerable extends \Countable, \Iterator, \Serializable, IObject {
      * Checks if another sequence has the same elements as that sequence.
      *
      * @param mixed $other The other sequence.
-     * @param callable $equalityComparer The custom equality comparer to use.
+     * @param callable|bool $equalityComparer The custom equality comparer for the items to use.
+     *                                        (true) indicates to check values for exact match (=== operator).
+     * @param callable|bool $keyEqualityComparer The custom equality comparer for the keys to use.
+     *                                           (null) indicates that keys should not be compared.
+     *                                           (true) indicates to check values for exact match (=== operator).
      *
      * @return bool Both are equal or not.
      *
      * @throws ArgumentException $equalityComparer is no valid callable / lambda expression.
      */
-    function sequenceEqual($other, $equalityComparer = null) : bool;
+    function sequenceEqual($other, $equalityComparer = null, $keyEqualityComparer = null) : bool;
 
     /**
      * Returns the one and only matching element in that sequence.
+     *
+     * @param callable $predicate The custom predicate to use.
+     *
+     * @return mixed The found element or the default value.
+     *
+     * @throws ArgumentException $predicate is no valid callable / lambda expression.
+     * @throws ElementNotFoundException Element was not found.
+     */
+    function single($predicate = null);
+
+    /**
+     * Returns the one and only matching element in that sequence or a default value if not found.
      *
      * @param mixed $predicateOrDefValue The custom predicate to use.
      *                                   If there is only one submitted argument and this variable contains
      *                                   no callable, it is set to (null) and its origin value is written to $defValue.
      * @param mixed $defValue The default value if element was not found.
+     * @param bool &$found The variable where to write down if an element was found or not.
      *
      * @return mixed The found element or the default value.
      *
-     * @throws \Exception Sequence contains more than one element.
+     * @throws ArgumentException $predicateOrDefValue is no valid callable / lambda expression.
+     * @throws EnumerableException Sequence contains more than one element.
      */
-    function singleOrDefault($predicateOrDefValue = null, $defValue = null);
+    function singleOrDefault($predicateOrDefValue = null, $defValue = null, &$found = false);
 
     /**
      * Skips a number of items.
@@ -568,11 +673,28 @@ interface IEnumerable extends \Countable, \Iterator, \Serializable, IObject {
     function toArray($keySelector = null) : array;
 
     /**
+     * Creates a new dictionary from that sequence.
+     *
+     * @param callable $keyComparer The custom key comparer to use.
+     * @param callable $keyValidator The custom validator for the keys to use.
+     * @param callable $valueValidator The custom validator for the values to use.
+     *
+     * @return IDictionary The new dictionary.
+     *
+     * @throws ArgumentException $keyComparer / $keyValidator / $valueValidator is no valid callable / lambda expression.
+     */
+    function toDictionary($keyComparer = null, $keyValidator = null, $valueValidator = null) : IDictionary;
+
+    /**
      * Converts that sequence to a JSON string.
      *
      * @param callable|int $keySelectorOrOptions The key selector.
-     *                                           If there is only one argumetn submitted and this argument is
-     *                                           no callable, it is handled as value for $options and set to default.
+     *                                           If there is only one arguments submitted and this argument is no
+     *                                           callable, it is handled as value for $options and set to default.
+     *                                           If there are only 2 arguments submitted and this argument is no
+     *                                           callable, $options is handled as value for $depth and this value is
+     *                                           handled as value for $options by setting $keySelectorOrOptions to
+     *                                           default (null).
      * @param int $options @see \json_encode()
      * @param int $depth @see \json_encode()
      *
@@ -581,10 +703,50 @@ interface IEnumerable extends \Countable, \Iterator, \Serializable, IObject {
     function toJson($keySelectorOrOptions = null, int $options = 0, int $depth = 512) : IString;
 
     /**
+     * Converts that sequence to a new list.
+     *
+     * @param callable $equalityComparer The custom equality comparer to use.
+     * @param callable $itemValidator The custom item validator to use.
+     *
+     * @return IList The new list.
+     *
+     * @throws ArgumentException $equalityComparer / $itemValidator is no valid callable / lambda expression.
+     */
+    function toList($equalityComparer = null, $itemValidator = null) : IList;
+
+    /**
+     * Converts that sequence to a new lookup object.
+     *
+     * @param callable $keySelector The custom key selector to use.
+     * @param callable $keyEqualityComparer The custom key comparer to use.
+     * @param callable $elementSelector The custom element selector to use.
+     *
+     * @return ILookup The sequence as lookup.
+     *
+     * @throws ArgumentException $equalityComparer / $itemValidator / $elementSelector is
+     *                           no valid callable / lambda expression.
+     * @throws ArgumentNullException $keySelector is (null).
+     */
+    function toLookup($keySelector, $keyEqualityComparer = null, $elementSelector = null) : ILookup;
+
+    /**
+     * Converts that sequence to a new set.
+     *
+     * @param callable $equalityComparer The custom equality comparer to use.
+     * @param callable $itemValidator The custom item validator to use.
+     *
+     * @return ISet The new set.
+     *
+     * @throws ArgumentException $equalityComparer / $itemValidator is no valid callable / lambda expression.
+     */
+    function toSet($equalityComparer = null, $itemValidator = null) : ISet;
+
+    /**
      * Produces the set union of that sequence and another.
      *
      * @param mixed $second The other sequence.
-     * @param callable $equalityComparer The custom equality comparer to use.
+     * @param callable|bool $equalityComparer The custom equality comparer to use.
+     *                                        (true) indicates to check values for exact match (=== operator).
      *
      * @return IEnumerable The new sequence.
      *
@@ -605,6 +767,31 @@ interface IEnumerable extends \Countable, \Iterator, \Serializable, IObject {
     function where($predicate) : IEnumerable;
 
     /**
+     * Returns a new sequence with the same items BUT new keys.
+     *
+     * @param callable $keySelector The key selector to use.
+     *
+     * @return IEnumerable The new sequence.
+     *
+     * @throws ArgumentException $keySelector is no valid callable / lambda expression.
+     * @throws ArgumentNullException $keySelector is (null).
+     */
+    function withNewKeys($keySelector) : IEnumerable;
+
+    /**
+     * Returns a new sequence with new keys AND items.
+     *
+     * @param callable $keySelector The key selector to use.
+     * @param callable $valueSelector The value / item selector to use.
+     *
+     * @return IEnumerable The new sequence.
+     *
+     * @throws ArgumentException $keySelector / $valueSelector is no valid callable / lambda expression.
+     * @throws ArgumentNullException $keySelector / $valueSelector is (null).
+     */
+    function withNewKeysAndValues($keySelector, $valueSelector) : IEnumerable;
+
+    /**
      * Applies a specified function to the corresponding elements of that sequence and another,
      * producing a sequence of the results.
      *
@@ -614,6 +801,7 @@ interface IEnumerable extends \Countable, \Iterator, \Serializable, IObject {
      * @return IEnumerable The new sequence.
      *
      * @throws ArgumentException $selector is no valid callable / lambda expression.
+     * @throws ArgumentNullException $selector is (null).
      */
     function zip($second, $selector) : IEnumerable;
 }

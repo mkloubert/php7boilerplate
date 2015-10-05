@@ -36,18 +36,18 @@ define('PHP7BP_INDEX', true, false);
 require_once __DIR__ . DIRECTORY_SEPARATOR . 'bootstrap.php';
 
 
-$app = php7bp::app();
+$app = \php7bp::app();
 try {
     try {
         $app->initialize();
     }
-    catch (Exception $ex) {
-        throw new php7bp\Application\NotInitializedException($app, $ex);
+    catch (\Exception $ex) {
+        throw new \php7bp\Application\NotInitializedException($app, $ex);
     }
 
     $app->run();
 }
-catch (Exception $ex) {
+catch (\Exception $ex) {
     if (!$app->handleException($ex)) {
         // not handled => rethrow
         throw $ex;

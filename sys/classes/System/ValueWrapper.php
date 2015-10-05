@@ -59,13 +59,14 @@ class ValueWrapper extends Object implements IValueWrapper {
      * {@inheritDoc}
      */
     public function equals($other) : bool {
-        return $this->getWrappedValue() == static::getRealValue($other);
+        return static::getRealValue($other) ==
+               static::getRealValue($this->_wrappedValue);
     }
 
     /**
      * {@inheritDoc}
      */
-    public final function getWrappedValue() {
+    public function getWrappedValue() {
         return $this->_wrappedValue;
     }
 }

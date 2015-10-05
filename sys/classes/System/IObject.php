@@ -38,22 +38,21 @@ namespace System;
  * @package System
  * @author Marcel Joachim Kloubert <marcel.kloubert@gmx.net>
  */
-interface IObject {
+interface IObject extends ICloneable, IConvertible, IEquatable {
     /**
-     * Compares that object with another.
+     * Returns the string representation of that object.
      *
-     * @param mixed $other The other object / value.
-     *
-     * @return bool Are equal or not.
+     * @return string The string representation.
      */
-    function equals($other) : bool;
+    function __toString();
+
 
     /**
      * Gets the type of that object.
      *
      * @return \ReflectionObject The type.
      */
-    function getType();
+    function getType() : \ReflectionObject;
 
     /**
      * Returns the string representation of that object.

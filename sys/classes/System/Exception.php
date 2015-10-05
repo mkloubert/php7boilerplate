@@ -46,11 +46,12 @@ class Exception extends \Exception implements IException {
      * @param \Exception $innerException The inner exception.
      * @param int $code The code.
      */
-    public function __construct(string $message = '',
+    public function __construct($message = null,
                                 \Exception $innerException = null,
                                 int $code = 0) {
 
-        parent::__construct($message, $code, $innerException);
+        parent::__construct(ClrString::valueToString($message),
+                            $code, $innerException);
     }
 
     /**
@@ -65,6 +66,13 @@ class Exception extends \Exception implements IException {
     /**
      * {@inheritDoc}
      */
+    public function cloneMe() : ICloneable {
+        return clone $this;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
     public function equals($other) : bool {
         return $this == $other;
     }
@@ -72,7 +80,7 @@ class Exception extends \Exception implements IException {
     /**
      * {@inheritDoc}
      */
-    public final function getType() {
+    public final function getType() : \ReflectionObject {
         return new \ReflectionObject($this);
     }
 
@@ -81,5 +89,13 @@ class Exception extends \Exception implements IException {
      */
     public function toString() : IString {
         return new ClrString(parent::__toString());
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    public function toType($conversionType, IFormatProvider $provider = null) {
+        return Object::convertTo($this,
+                                 $conversionType, $provider);
     }
 }
