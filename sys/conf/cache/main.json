@@ -1,0 +1,10 @@
+{
+  "adapter": {
+    "name": "memory"
+  },
+  "plugins": {
+    "exception_handler": {
+      "throw_exceptions": false
+    }
+  }
+}

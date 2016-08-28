@@ -1,0 +1,6 @@
+{
+    "driver": "Mysqli",
+    "database": "php7_db",
+    "username": "root",
+    "password": ""
+}
