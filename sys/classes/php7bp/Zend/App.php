@@ -19,66 +19,20 @@
  * License along with this software.                                                                                  *
  **********************************************************************************************************************/
 
-\chdir(__DIR__);
+namespace php7bp\Zend;
 
-\define('PHP7BP_INDEX', 1);
+/**
+ * App class optimized for Zend Framework.
+ *
+ * @package php7bp\Zend
+ *
+ * @author Marcel Joachim Kloubert <marcel.kloubert@gmx.net>
+ */
+class App extends \php7bp\App {
+    public function init() {
+        $this->moduleClass = "\\php7bp\\Zend\\Modules\\Impl\\Module";
+        $this->moduleContextClass = "\\php7bp\\Zend\\Modules\\Context";
 
-require_once './bootstrap.php';
-
-$appConf = \php7bp::appConf();
-
-$appClass = '';
-if (isset($appConf['class'])) {
-    $appClass = \trim($appConf['class']);
-}
-
-if ('' === $appClass) {
-    $appClass = '\php7bp\App';
-}
-
-if (\class_exists($appClass)) {
-    $app = new $appClass();
-
-    $handleException = function(\Exception $ex, string $ctx) use ($app) {
-        $errorHandled = false;
-
-        if (\method_exists($app, 'onError')) {
-            $errorHandled = false !== $app->onError($ex, $ctx);
-        }
-
-        if (!$errorHandled) {
-            throw $ex;
-        }
-    };
-
-    $appIsInitialized = true;
-    if (\method_exists($app, 'init')) {
-        try {
-            $appIsInitialized = false !== $app->init();
-        }
-        catch (\Exception $ex) {
-            $appIsInitialized = false;
-
-            $handleException($ex, 'init');
-        }
+        return parent::init();
     }
-
-    if (!$appIsInitialized) {
-
-    }
-
-    if (\method_exists($app, 'run')) {
-        try {
-            $app->run();
-        }
-        catch (\Exception $ex) {
-            $handleException($ex, 'run');
-        }
-    }
-    else {
-        \header(':', true, 501);
-    }
-}
-else {
-    \header(':', true, 501);
 }

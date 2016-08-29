@@ -31,13 +31,9 @@ class php7bp {
     const DEFAULT_CONFIG_NAME = 'main';
 
     /**
-     * @var mixed
-     */
-    private static $_app;
-    /**
      * @var Zend\Cache\Storage\StorageInterface[]
      */
-    private static $_caches = [];
+    // private static $_caches = [];
     /**
      * @var [][]
      */
@@ -45,7 +41,8 @@ class php7bp {
     /**
      * @var Zend\Db\Adapter\Adapter[]
      */
-    private static $_dbs = [];
+    // private static $_dbs = [];
+    protected static $_mysql = [];
 
     // "static" class
     protected function __construct() { }
@@ -71,7 +68,7 @@ class php7bp {
      *
      * @return Zend\Cache\Storage\StorageInterface|bool The cache or (false) on error.
      */
-    public static function cache($name = self::DEFAULT_CONFIG_NAME) {
+    /* public static function cache($name = self::DEFAULT_CONFIG_NAME) {
         $name = 'cache.' . $name;
 
         if (!isset(self::$_caches[$name])) {
@@ -86,7 +83,7 @@ class php7bp {
         }
 
         return self::$_caches[$name];
-    }
+    } */
 
     /**
      * Loads config data.
@@ -95,7 +92,7 @@ class php7bp {
      *
      * @return array|null|bool
      */
-    public static function conf($name = 'app') {
+    public static function conf(string $name = 'app') {
         $name = (string)$name;
 
         $file = realpath(PHP7BP_DIR_CONFIG .
@@ -120,7 +117,7 @@ class php7bp {
      *
      * @return Zend\Db\Adapter\Adapter|bool The adapter or (false) on error.
      */
-    public static function db($name = self::DEFAULT_CONFIG_NAME) {
+    /* public static function db($name = self::DEFAULT_CONFIG_NAME) {
         $name = 'db.' . $name;
 
         if (!isset(self::$_dbs[$name])) {
@@ -135,5 +132,82 @@ class php7bp {
         }
 
         return self::$_dbs[$name];
+    } */
+
+    /**
+     * Returns a Mysqli connection.
+     *
+     * @param string $name The name of the connection.
+     *
+     * @return mysqli|bool The connection or (false) on error.
+     */
+    public static function mysql(string $name = self::DEFAULT_CONFIG_NAME) {
+        if (isset(static::$_mysql[$name])) {
+            $conf = self::conf('mysql.' . $name);
+            if (false === $conf) {
+                return false;
+            }
+
+            $host = null;
+            $username = null;
+            $password = null;
+            $db = null;
+            $port = null;
+            $socket = null;
+            if (is_array($conf)) {
+                if (isset($conf['host'])) {
+                    $host = trim($conf['host']);
+                }
+
+                if (isset($conf['user'])) {
+                    $username = trim($conf['user']);
+                }
+
+                if (isset($conf['password'])) {
+                    $password = (string)$conf['password'];
+                }
+
+                if (isset($conf['db'])) {
+                    $db = trim($conf['db']);
+                }
+
+                if (isset($conf['port'])) {
+                    $port = trim($conf['port']);
+                }
+
+                if (isset($conf['socket'])) {
+                    $socket = trim($conf['socket']);
+                }
+            }
+
+            if (empty($host)) {
+                $host = null;
+            }
+            if (empty($user)) {
+                $user = null;
+            }
+            if (empty($password)) {
+                $password = null;
+            }
+            if (empty($db)) {
+                $db = null;
+            }
+            if (empty($port)) {
+                $port = null;
+            }
+            if (empty($socket)) {
+                $socket = null;
+            }
+
+            static::$_mysql[$name] = new \mysqli(
+                $host,
+                $username,
+                $password,
+                $db,
+                $port,
+                $socket);
+        }
+
+        return static::$_mysql[$name];
     }
 }

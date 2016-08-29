@@ -30,9 +30,33 @@ namespace php7bp\Modules;
  */
 class Context {
     /**
+     * @var array
+     */
+    public $config;
+
+    /**
      * @var string
      */
     public $dir;
+
+    /**
+     * Initializes the module context.
+     *
+     * @param mixed $app The application instance.
+     * @param array $properties The list of initial properties.
+     */
+    public function init($app, $properties) {
+        $cls = new \ReflectionClass(static::class);
+
+        if (isset($properties)) {
+            foreach ($properties as $propName => $propValue) {
+                if ($cls->hasProperty($propName)) {
+                    $cls->getProperty($propName)
+                        ->setValue($this, $propValue);
+                }
+            }
+        }
+    }
 
     /**
      * @var string

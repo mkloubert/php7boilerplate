@@ -46,4 +46,7 @@ spl_autoload_register(function($clsName) {
     }
 });
 
-require(PHP7BP_DIR_VENDOR . 'autoload.php');
+$vendorAutoloader = realpath(PHP7BP_DIR_VENDOR . 'autoload.php');
+if (is_file($vendorAutoloader)) {
+    require_once $vendorAutoloader;
+}

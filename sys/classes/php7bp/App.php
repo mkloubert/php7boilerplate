@@ -34,14 +34,15 @@ class App {
      */
     const VALID_MODULE_CHARS = 'abcdefghijklmnopqrstuvwxyz0123456789/';
 
-    protected $_defaultModuleMethod;
-    protected $_defaultModuleName;
-    protected $_moduleClass;
-    protected $_moduleContextClass;
-    protected $_moduleScriptFile;
-    protected $_moduleRootDir;
-    protected $_moduleVar;
-    protected $_setContextMethod;
+    public $defaultModuleMethod = '';
+    public $defaultModuleName = '';
+    public $moduleClass = '';
+    public $moduleContextClass = '';
+    public $moduleNameSeparator = '';
+    public $moduleScriptFile = '';
+    public $moduleRootDir = '';
+    public $moduleVar = '';
+    public $setContextMethod = '';
 
     /**
      * Cleans up a module name.
@@ -50,28 +51,74 @@ class App {
      *
      * @return string The output value.
      */
-    protected static function cleanupModuleName($module) {
+    protected function cleanupModuleName($module) {
         $module = \trim(\strtolower($module));
 
-        $module = \str_ireplace(\DIRECTORY_SEPARATOR, '/', $module);
+        $module = \str_ireplace(\DIRECTORY_SEPARATOR, $this->moduleNameSeparator, $module);
 
         $newName = '';
 
         $strLen = \strlen($module);
         for ($i = 0; $i < $strLen; $i++) {
             $c = $module[$i];
-            if (false === strpos(self::VALID_MODULE_CHARS, $c)) {
+            if (false === \strpos(self::VALID_MODULE_CHARS, $c)) {
                 $c = '_';
             }
 
             $newName .= $c;
         }
 
-        return \trim($newName, '/');
+        return \trim($newName, $this->moduleNameSeparator);
     }
 
+    /**
+     * Extracts the meta data from a module name.
+     *
+     * @param string $moduleName The cleaned up module name submitted by the remote client.
+     *
+     * @return array The extracted data.
+     */
     protected function getModuleMeta($moduleName) {
+        $parts = \explode($this->moduleNameSeparator, $moduleName);
+        $parts = \array_map(function($x) {
+            return \trim($x);
+        }, $parts);
+        $parts = \array_filter($parts, function($x) {
+            return '' !== $x;
+        });
+        $partCount = \count($parts);
 
+        $moduleDir = \realpath($this->moduleRootDir . \DIRECTORY_SEPARATOR .
+                               \implode(\DIRECTORY_SEPARATOR, $parts));
+        if (!\is_dir($moduleDir)) {
+            if ($partCount > 0) {
+                $moduleAction = \trim(\strtolower($parts[$partCount - 1]));
+
+                $moduleDir = \realpath($this->moduleRootDir . \DIRECTORY_SEPARATOR .
+                                       \implode(\DIRECTORY_SEPARATOR,
+                                                \array_slice($parts, 0, $partCount - 1)));
+            }
+        }
+
+        $meta = [
+            'dir' => $moduleDir,
+        ];
+
+        if (!empty($moduleAction)) {
+            $meta['action'] = $moduleAction;
+        }
+
+        return $meta;
+    }
+
+    /**
+     * Returns the unhandled module name submitted by the remote client.
+     *
+     * @return string|null The module name or (null) if not available.
+     */
+    protected function getModuleName() {
+        return !empty($_REQUEST[$this->moduleVar]) ? $_REQUEST[$this->moduleVar]
+                                                   : null;
     }
 
     /**
@@ -82,78 +129,65 @@ class App {
     public function init() {
         $appConf = \php7bp::appConf();
 
-        // variable that contains the module name
-        $this->_moduleVar = '';
         if (isset($appConf['modules'])) {
+            // variable that contains the module name
             if (isset($appConf['modules']['var'])) {
-                $this->_moduleVar = \trim($appConf['modules']['var']);
+                $this->moduleVar = \trim($appConf['modules']['var']);
             }
-        }
-        if ('' === $this->_moduleVar) {
-            $this->_moduleVar = 'm';
-        }
 
-        // default module name
-        $this->_defaultModuleName = '';
-        if (isset($appConf['modules'])) {
+            // name of default module
             if (isset($appConf['modules']['default'])) {
-                $this->_defaultModuleName = \trim($appConf['modules']['default']);
+                $this->defaultModuleName = \trim($appConf['modules']['default']);
             }
-        }
-        if ('' === $this->_defaultModuleName) {
-            $this->_defaultModuleName = 'index';
-        }
 
-        // default module method to execute
-        $this->_defaultModuleMethod = '';
-        if (isset($appConf['modules'])) {
+            // name of default method
             if (isset($appConf['modules']['method'])) {
-                $this->_defaultModuleMethod = \trim($appConf['modules']['method']);
+                $this->defaultModuleMethod = \trim($appConf['modules']['method']);
             }
-        }
-        if ('' === $this->_defaultModuleMethod) {
-            $this->_defaultModuleMethod = 'request';
-        }
 
-        $this->_moduleScriptFile = '';
-        if ('' === $this->_moduleScriptFile) {
-            $this->_moduleScriptFile = 'index.php';
-        }
-
-        // method for setting a module context
-        $this->_setContextMethod = '';
-        if (isset($appConf['modules'])) {
+            // name of method for setting the instance of the module (execution) context
             if (isset($appConf['modules']['setContext'])) {
-                $this->_setContextMethod = \trim($appConf['modules']['setContext']);
+                $this->setContextMethod = \trim($appConf['modules']['setContext']);
             }
-        }
-        if ('' === $this->_setContextMethod) {
-            $this->_setContextMethod = 'setContext';
-        }
 
-        // name of a module class
-        $this->_moduleClass = '';
-        if (isset($appConf['modules'])) {
-            if (isset($appConf['modules']['class'])) {
-                $this->_moduleClass = \trim($appConf['modules']['class']);
-            }
-        }
-        if ('' === $this->_moduleClass) {
-            $this->_moduleClass = "\\php7bp\\Modules\\Impl\\Module";
-        }
-
-        // name of a module CONTEXT class
-        $this->_moduleContextClass = '';
-        if (isset($appConf['modules'])) {
+            // name of the module (execution) context class
             if (isset($appConf['modules']['context'])) {
-                $this->_moduleContextClass = \trim($appConf['modules']['context']);
+                if (isset($appConf['modules']['context']['class'])) {
+                    $this->moduleContextClass = \trim($appConf['modules']['context']['class']);
+                }
+            }
+
+            // name of the entry script of a module
+            if (isset($appConf['modules']['script'])) {
+                $this->moduleScriptFile = \trim($appConf['modules']['script']);
             }
         }
-        if ('' === $this->_moduleContextClass) {
-            $this->_moduleContextClass = "\\php7bp\\Modules\\Context";
+
+        // set defaults if needed
+        if (empty($this->moduleVar)) {
+            $this->moduleVar = 'm';
+        }
+        if (empty($this->defaultModuleName)) {
+            $this->defaultModuleName = 'index';
+        }
+        if (empty($this->defaultModuleMethod)) {
+            $this->defaultModuleMethod = 'request';
+        }
+        if (empty($this->setContextMethod)) {
+            $this->setContextMethod = 'setContext';
+        }
+        if (empty($this->moduleClass)) {
+            $this->moduleClass = "\\php7bp\\Modules\\Impl\\Module";
+        }
+        if (empty($this->moduleScriptFile)) {
+            $this->moduleScriptFile = 'index.php';
+        }
+        if (empty($this->moduleContextClass)) {
+            $this->moduleContextClass = "\\php7bp\\Modules\\Context";
         }
 
-        $this->_moduleRootDir = \PHP7BP_DIR_SYS . 'modules';
+        $this->moduleNameSeparator = '/';
+        $this->moduleRootDir = \PHP7BP_DIR_SYS . 'modules';
     }
 
     /**
@@ -163,32 +197,20 @@ class App {
         $appConf = \php7bp::appConf();
 
         // module name
-        $moduleName = '';
-        if (isset($_REQUEST[$this->_moduleVar])) {
-            $moduleName = \trim($_REQUEST[$this->_moduleVar]);
-        }
-        if ('' === $moduleName) {
+        $moduleName = $this->getModuleName();
+        if (empty($moduleName)) {
             // use default
-            $moduleName = $this->_defaultModuleName;
+            $moduleName = $this->defaultModuleName;
         }
 
-        $moduleName = static::cleanupModuleName($moduleName);
+        $moduleName = $this->cleanupModuleName($moduleName);
+        $moduleMeta = $this->getModuleMeta($moduleName);
 
-        // root directory with modules
-        $moduleRootDir = '';
-        if (isset($appConf['modules'])) {
-            if (isset($appConf['modules']['dir'])) {
-                $moduleRootDir = \trim($appConf['modules']['dir']);
-            }
-        }
-        if ('' === $moduleRootDir) {
-            $moduleRootDir = $this->_moduleRootDir;
-        }
-
-        $moduleClassName = $this->_moduleClass;
-        $moduleContextClassName = $this->_moduleContextClass;
-        $moduleScriptFile = $this->_moduleScriptFile;
-        $setContextMethod = $this->_setContextMethod;
+        $moduleRootDir = $this->moduleRootDir;
+        $moduleClassName = $this->moduleClass;
+        $moduleContextClassName = $this->moduleContextClass;
+        $moduleScriptFile = $this->moduleScriptFile;
+        $setContextMethodName = $this->setContextMethod;
 
         $resultAction = function() {
             \header(':', true, 404);
@@ -207,8 +229,55 @@ class App {
 
         $moduleRootDir = \realpath($moduleRootDir);
         if (\is_dir($moduleRootDir)) {
-            $moduleDir = \realpath($moduleRootDir . \DIRECTORY_SEPARATOR . $moduleName);
+            $moduleDir = $moduleMeta['dir'];
             if (\is_dir($moduleDir)) {
+                $metaFile = \realpath($moduleDir . \DIRECTORY_SEPARATOR . 'meta.json');
+                if (\is_file($metaFile)) {
+                    $meta = \json_decode($metaFile, true);
+                }
+
+                if (!isset($meta)) {
+                    $meta = [];
+                }
+
+                $moduleConfig = !isset($meta['config']) ? [] : $meta['config'];
+
+                // custom module class name from meta file?
+                if (isset($meta['class'])) {
+                    $metaModuleClassName = \trim($meta['class']);
+                }
+                if (!empty($metaModuleClassName)) {
+                    $moduleClassName = $metaModuleClassName;
+                }
+
+                // custom module class name from meta file?
+                if (isset($meta['script'])) {
+                    $metaModuleScriptFile = \trim($meta['script']);
+                }
+                if (!empty($metaModuleScriptFile)) {
+                    $moduleScriptFile = $metaModuleScriptFile;
+                }
+
+                // custom module context class name from meta file?
+                if (isset($meta['context'])) {
+                    if (isset($meta['context']['class'])) {
+                        $metaModuleContextClass = \trim($meta['context']['class']);
+                    }
+                }
+                if (!empty($metaModuleContextClass)) {
+                    $moduleContextClassName = $metaModuleContextClass;
+                }
+
+                // custom setContext method from meta file?
+                if (isset($meta['methods'])) {
+                    if (isset($meta['methods']['setContext'])) {
+                        $metaSetContextMethod = \trim($meta['methods']['setContext']);
+                    }
+                }
+                if (!empty($metaSetContextMethod)) {
+                    $setContextMethodName = $metaSetContextMethod;
+                }
+
                 $moduleFile = \realpath($moduleDir . \DIRECTORY_SEPARATOR . $moduleScriptFile);
                 if (\is_file($moduleFile)) {
                     require_once $moduleFile;
@@ -221,38 +290,69 @@ class App {
                         $moduleClass = new \ReflectionClass($moduleClassName);
 
                         if (\class_exists($moduleContextClassName)) {
-                            $moduleContextClass = new \ReflectionClass($moduleContextClassName);
-
                             $moduleCtx = new $moduleContextClassName();
+                            if (\method_exists($moduleCtx, 'init')) {
+                                $moduleCtxProperties = [
+                                    'config' => $moduleConfig,
+                                    'dir' => $moduleDir . \DIRECTORY_SEPARATOR,
+                                    'method' => $httpRequestMethod,
+                                    'time' => new \DateTime(),
+                                ];
 
-                            // properties of a module context
-                            $moduleCtxProperties = [
-                                'dir' => $moduleDir . \DIRECTORY_SEPARATOR,
-                                'method' => $httpRequestMethod,
-                                'time' => new \DateTime(),
-                            ];
-                            foreach ($moduleCtxProperties as $moduleCtxPropertyName => $moduleCtxPropertyValue) {
-                                if ($moduleContextClass->hasProperty($moduleCtxPropertyName)) {
-                                    $moduleContextClass->getProperty($moduleCtxPropertyName)
-                                                       ->setValue($moduleCtx, $moduleCtxPropertyValue);
+                                if (false === $moduleCtx->init($this, $moduleCtxProperties)) {
+                                    throw new \Exception('Module context could not be initialized!');
                                 }
                             }
                         }
 
-                        // check if there is a lower case
-                        // method with the same name as the
-                        // HTTP request method
-                        $methodToExecute = $this->_defaultModuleMethod;
-                        if ($moduleClass->hasMethod($httpRequestMethod)) {
-                            $methodToExecute = $httpRequestMethod;
+                        if (!empty($moduleMeta['action'])) {
+                            // first search for public action method
+                            // {lower-case-action-name}_Action()
+                            $actionMethodName = $moduleMeta['action'] . '_Action';
+
+                            if ($moduleClass->hasMethod($actionMethodName)) {
+                                $actionMethod = $moduleClass->getMethod($actionMethodName);
+                                if ($actionMethod->isPublic()) {
+                                    // found
+                                    $methodNameToExecute = $actionMethodName;
+                                }
+                            }
                         }
 
-                        if ($moduleClass->hasMethod($methodToExecute)) {
-                            $module = new $moduleClassName();
+                        if (empty($methodNameToExecute)) {
+                            // now try to find
+                            // method that has the same name as
+                            // the current HTTP request method name (get, post, put, etc.)
 
+                            $httpRequestMethodName = $httpRequestMethod;
+                            if ($moduleClass->hasMethod($httpRequestMethodName)) {
+                                $httpMethod = $moduleClass->getMethod($httpRequestMethodName);
+                                if ($httpMethod->isPublic()) {
+                                    $methodNameToExecute = $httpRequestMethodName;
+                                }
+                            }
+                        }
+
+                        if (empty($methodNameToExecute)) {
+                            // use default
+                            $methodNameToExecute = $this->defaultModuleMethod;
+                        }
+                        if ($moduleClass->hasMethod($methodNameToExecute)) {
+                            $methodToExecute = $moduleClass->getMethod($methodNameToExecute);
+
+                            $module = $moduleClass->newInstance();
+
+                            // non-public
+                            // setContext() method
                             if (isset($moduleCtx)) {
-                                if ($moduleClass->hasMethod($setContextMethod)) {
-                                    $module->$setContextMethod($moduleCtx);
+                                if ($moduleClass->hasMethod($setContextMethodName)) {
+                                    $setContextMethod = $moduleClass->getMethod($setContextMethodName);
+                                    if (!$setContextMethod->isPublic()) {
+                                        $setContextMethod->setAccessible(true);
+
+                                        $setContextMethod->invoke($module,
+                                                                  $moduleCtx);
+                                    }
                                 }
                             }
 
@@ -261,7 +361,10 @@ class App {
                             $resultAction = function() use ($methodToExecute, $module) {
                                 \ob_start();
                                 try {
-                                    $moduleResult = $module->$methodToExecute();
+                                    $moduleArgs = [];  //TODO
+
+                                    $moduleResult = $methodToExecute->invokeArgs($module,
+                                                                                 $moduleArgs);
 
                                     $content = \ob_get_contents();
                                 }
@@ -270,7 +373,7 @@ class App {
                                 }
 
                                 // define result content
-                                if ('' !== $content) {
+                                if (!empty($content)) {
                                     if (null !== $moduleResult) {
                                         $content .= $moduleResult;
                                     }

@@ -48,7 +48,7 @@ abstract class AbstractModule {
      *
      * @param mixed $ctx The new context.
      */
-    public function setContext($ctx) {
+    protected function setContext($ctx) {
         $this->_context = $ctx;
     }
 }
